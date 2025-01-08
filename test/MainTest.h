@@ -12,8 +12,6 @@
 #include "mock/MockServo.h"
 #include "mock/MockAdafruit_NeoPixel.h"
 
-#include "../lib/AnalogInput/AnalogInput.h"
-
 using namespace fakeit;
 
 extern Mock<Can> mockCan;
