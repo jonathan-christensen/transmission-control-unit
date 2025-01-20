@@ -8,5 +8,5 @@
 A solenoid and servo driver for fully electric transmission control.
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/114702af-360f-4d59-8019-f006b395f88f" width="60%"/>
+  <img src="https://github.com/user-attachments/assets/1aadc36b-5f75-4563-ba2b-2bb5b031b6c0" width="60%"/>
 </div>
