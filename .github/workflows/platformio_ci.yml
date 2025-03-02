@@ -32,9 +32,9 @@ jobs:
 
       - name: Generate coverage Report
         run: |
-          gcovr -r . --coveralls -o coverage.json `
-            --exclude ".pio" `
-            --exclude "test" `
+          gcovr -r . --coveralls -o coverage.json \
+            --exclude ".pio" \
+            --exclude "test" \
             --exclude "lib/dbc"
 
       - name: Upload to Coveralls
