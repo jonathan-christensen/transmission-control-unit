@@ -31,7 +31,7 @@ jobs:
         run: pio run -e teensy41
         
       - name: Run tests
-        run: pio test -v -e native
+        run: pio test -v -e test
 
       - name: Generate coverage Report
         run: |
