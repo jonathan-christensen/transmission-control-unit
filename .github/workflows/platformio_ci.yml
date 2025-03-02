@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade platformio gcovr coveralls
+
+      - name: Compile for Teensy
+        run: pio run -e teensy41
         
       - name: Run tests
         run: pio test -v -e native
