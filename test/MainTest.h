@@ -4,9 +4,7 @@
 #include <gtest/gtest.h>
 #include <Arduino.h>
 #include "../lib/Storage/Storage.h"
-#include "../lib/AnalogInput/AnalogInput.h"
 #include "../lib/Transmission/Transmission.h"
-#include "../lib/Button/Button.h"
 #include "../lib/Can/Can.h"
 #include "mock/MockFlexCAN_T4.h"
 #include "mock/MockServo.h"
@@ -18,9 +16,6 @@ extern Mock<Can> mockCan;
 extern Mock<Storage> mockStorage;
 extern Mock<Adafruit_NeoPixel> mockPixels;
 extern Mock<Transmission> mockTransmission;
-extern Mock<Button> mockUp;
-extern Mock<Button> mockDown;
-extern Mock<AnalogInput> mockClutchRight;
 
 extern void setup();
 extern void loop();
@@ -60,24 +55,6 @@ protected:
         When(Method(mockCan, broadcastShiftSettings)).AlwaysReturn();
         When(Method(mockCan, broadcastClutchSettings)).AlwaysReturn();
         When(Method(mockCan, broadcastClutch)).AlwaysReturn();
-        When(Method(mockCan, broadcastAnalogInput)).AlwaysReturn();
-
-        // Up
-        When(Method(mockUp, begin)).AlwaysReturn();
-        When(Method(mockUp, update)).AlwaysReturn();
-        When(Method(mockUp, pressed)).AlwaysReturn(false);
-
-        // Down
-        When(Method(mockDown, begin)).AlwaysReturn();
-        When(Method(mockDown, update)).AlwaysReturn();
-        When(Method(mockDown, pressed)).AlwaysReturn(false);
-
-        // Right Clutch
-        When(Method(mockClutchRight, begin)).AlwaysReturn();
-        When(Method(mockClutchRight, minDeadzone)).AlwaysReturn();
-        When(Method(mockClutchRight, maxDeadzone)).AlwaysReturn();
-        When(Method(mockClutchRight, update)).AlwaysReturn();
-        When(Method(mockClutchRight, travel)).AlwaysReturn(33.3);
         
         // Transmission
         When(Method(mockTransmission, begin)).AlwaysReturn();
@@ -97,9 +74,6 @@ protected:
         mockCan.ClearInvocationHistory();
         mockPixels.ClearInvocationHistory();
         mockTransmission.ClearInvocationHistory();
-        mockUp.ClearInvocationHistory();
-        mockDown.ClearInvocationHistory();
-        mockClutchRight.ClearInvocationHistory();
     }
 };
 
@@ -117,53 +91,17 @@ TEST_F(MainTest, CanBegin) {
     Verify(Method(mockCan, begin)).Once();
 }
 
-TEST_F(MainTest, ButtonBegin) {
-    Verify(Method(mockUp, begin).Using(6, 5000)).Once();
-    Verify(Method(mockDown, begin).Using(7, 5000)).Once();
-}
-
-TEST_F(MainTest, AnalogInputBegin) {
-    Verify(Method(mockClutchRight, begin).Using(17)).Once();
-    Verify(Method(mockClutchRight, minDeadzone).Using(10)).Once();
-    Verify(Method(mockClutchRight, maxDeadzone).Using(20)).Once();
-}
-
-TEST_F(MainTest, TransmissionBegin) {
-    Verify(Method(mockTransmission, begin)).Once();
-}
-
-TEST_F(MainTest, ButtonsUpdate) {
-    loop();
-    Verify(Method(mockUp, update)).Once();
-    Verify(Method(mockDown, update)).Once();
-}
-
-TEST_F(MainTest, ButtonsPressed) {
-    When(Method(mockUp, pressed)).AlwaysReturn(true);
-    loop();
-    Verify(Method(mockTransmission, shift).Using(Transmission::Direction::UP)).Once();
-
-    When(Method(mockUp, pressed)).AlwaysReturn(false);
-    When(Method(mockDown, pressed)).AlwaysReturn(true);
-    loop();
-    Verify(Method(mockTransmission, shift).Using(Transmission::Direction::DOWN)).Once();
-}
-
 TEST_F(MainTest, TransmissionUpdate) {
-    When(Method(mockClutchRight, travel)).AlwaysReturn(33.3f);
     loop();
-    Verify(Method(mockTransmission, clutchInput).Using(33.3f)).Once();
     Verify(Method(mockTransmission, update)).Once();
 }
 
 TEST_F(MainTest, canLoop) {
     loop();
-    
     Verify(Method(mockCan, update)).Once();
     Verify(Method(mockCan, broadcastShiftSettings)).Once();
     Verify(Method(mockCan, broadcastClutchSettings)).Once();
     Verify(Method(mockCan, broadcastClutch)).Once();
-    Verify(Method(mockCan, broadcastAnalogInput)).Once();
 }
 
 #endif

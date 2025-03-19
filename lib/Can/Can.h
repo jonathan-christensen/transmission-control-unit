@@ -11,47 +11,41 @@
 #include <functional>
 #include "../Storage/Storage.h"
 #include "../Transmission/Transmission.h"
-#include "../AnalogInput/AnalogInput.h"
-#include "../dbc/r3.h"
-#include "../dbc/tcs.h"
+#include <r3.h>
+#include <tcs.h>
 
 class Can {
   public:
-    FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16>& interface;
+    FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16>& can1;
+    FlexCAN_T4<CAN2, RX_SIZE_16, TX_SIZE_16>& can2;
     Storage& storage;
     Transmission& transmission;
-    AnalogInput& clutchRight;
     
     Can(
-        FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16>& interfaceRef,
+        FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16>& can1Ref,
+        FlexCAN_T4<CAN2, RX_SIZE_16, TX_SIZE_16>& can2Ref,
         Storage& storageRef,
-        Transmission& transmissionRef,
-        AnalogInput& clutchRightRef
+        Transmission& transmissionRef
     ) : 
-        interface(interfaceRef),
+        can1(can1Ref),
+        can2(can2Ref),
         storage(storageRef),
-        transmission(transmissionRef),
-        clutchRight(clutchRightRef) {
+        transmission(transmissionRef) {
     }
     
     virtual void begin();
     virtual void update();
 
     virtual void broadcastShiftSettings();
-    virtual void broadcastClutchSettings();    
+    virtual void broadcastClutchSettings();
     virtual void broadcastClutch();
-    virtual void broadcastAnalogInput();
 
   private:
-    std::function<void(int)> group0 = nullptr;
-    std::function<void(int, int, int, int)> shiftSettings = nullptr;
-    std::function<void(int, int, int, bool)> clutchSettings = nullptr;
-    std::function<void(int, int)> setClutch = nullptr;
-
     void handleGroup0(const CAN_message_t &msg);
     void handleShiftSettings(const CAN_message_t &msg);
     void handleClutchSettings(const CAN_message_t &msg);
     void handleSetClutch(const CAN_message_t &msg);
+    void handleShiftController(const CAN_message_t &msg);
 
     unsigned long lastEcuUpdate = 0;
 };

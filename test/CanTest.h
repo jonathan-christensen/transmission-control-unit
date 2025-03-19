@@ -8,11 +8,15 @@
 #include "mock/MockFlexCAN_T4.h"
 
 using namespace fakeit;
+using namespace std;
 
 class CanTest : public ::testing::Test {
   protected:
-    Mock<FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16>> mockInterface;
-    FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16>& interface;
+    Mock<FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16>> mockCan1;
+    FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16>& can1;
+
+    Mock<FlexCAN_T4<CAN2, RX_SIZE_16, TX_SIZE_16>> mockCan2;
+    FlexCAN_T4<CAN2, RX_SIZE_16, TX_SIZE_16>& can2;
     
     Mock<Storage> mockStorage;
     Storage& storage;
@@ -20,17 +24,14 @@ class CanTest : public ::testing::Test {
     Mock<Transmission> mockTransmission;
     Transmission& transmission;
 
-    Mock<AnalogInput> mockClutchRight;
-    AnalogInput& clutchRight;
-
     Can can;
 
     CanTest() :
-        interface(mockInterface.get()),
+        can1(mockCan1.get()),
+        can2(mockCan2.get()),
         storage(mockStorage.get()),
         transmission(mockTransmission.get()),
-        clutchRight(mockClutchRight.get()),
-        can(interface, storage, transmission, clutchRight) {
+        can(can1, can2, storage, transmission) {
 
     }
 
@@ -56,18 +57,24 @@ class CanTest : public ::testing::Test {
 
         // Transmission
         When(Method(mockTransmission, setRpm)).AlwaysReturn();
+        When(Method(mockTransmission, shift)).AlwaysReturn();
+        When(Method(mockTransmission, clutchInput)).AlwaysReturn();
         When(Method(mockTransmission, setClutchPosition)).AlwaysReturn();
         When(Method(mockTransmission, clutchPosition)).AlwaysReturn();
         When(Method(mockTransmission, clutchPercentage)).AlwaysReturn();
 
-        When(Method(mockInterface, begin)).AlwaysReturn();
-        When(Method(mockInterface, setBaudRate)).AlwaysReturn();
-        When(Method(ArduinoFake(), millis)).AlwaysReturn(0);
-
         // FlexCAN_T4
-        When(Method(mockInterface, write)).AlwaysReturn(1);
+        When(Method(mockCan1, begin)).AlwaysReturn();
+        When(Method(mockCan1, setBaudRate)).AlwaysReturn();
+        When(Method(mockCan1, read)).AlwaysReturn(0);
+        When(Method(mockCan1, write)).AlwaysReturn(1);
 
-        When(Method(mockClutchRight, travel)).AlwaysReturn(0);
+        When(Method(mockCan2, begin)).AlwaysReturn();
+        When(Method(mockCan2, setBaudRate)).AlwaysReturn();
+        When(Method(mockCan2, read)).AlwaysReturn(0);
+        When(Method(mockCan2, write)).AlwaysReturn(1);
+
+        When(Method(ArduinoFake(), millis)).AlwaysReturn(0);
         When(Method(ArduinoFake(), analogRead)).AlwaysReturn(0);
 
         can.begin();
@@ -79,12 +86,15 @@ class CanTest : public ::testing::Test {
 };
 
 TEST_F(CanTest, begin) {
-    Verify(Method(mockInterface, begin)).Once();
-    Verify(Method(mockInterface, setBaudRate).Using(1000000)).Once();
+    Verify(Method(mockCan1, begin)).Once();
+    Verify(Method(mockCan1, setBaudRate).Using(1000000)).Once();
+
+    Verify(Method(mockCan2, begin)).Once();
+    Verify(Method(mockCan2, setBaudRate).Using(1000000)).Once();
 }
 
 TEST_F(CanTest, group0) {
-    When(Method(mockInterface, read)).Do([](CAN_message_t &msg) -> int {
+    When(Method(mockCan1, read)).Do([](CAN_message_t &msg) -> int {
         msg = CAN_message_t {
             .id = 0x360u,
             .buf = {0x12, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
@@ -99,7 +109,7 @@ TEST_F(CanTest, group0) {
 }
 
 TEST_F(CanTest, shiftSettings) {
-    When(Method(mockInterface, read)).Do([](CAN_message_t &msg) -> int {
+    When(Method(mockCan1, read)).Do([](CAN_message_t &msg) -> int {
         msg = CAN_message_t {
             .id = 0x656u,
             .buf = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}
@@ -117,7 +127,7 @@ TEST_F(CanTest, shiftSettings) {
 }
 
 TEST_F(CanTest, clutchSettings) {
-    When(Method(mockInterface, read)).Do([](CAN_message_t &msg) -> int {
+    When(Method(mockCan1, read)).Do([](CAN_message_t &msg) -> int {
         msg = CAN_message_t {
             .id = 0x658u,
             .buf = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x00, 0x01}
@@ -136,7 +146,7 @@ TEST_F(CanTest, clutchSettings) {
 
 TEST_F(CanTest, setClutch) {
     When(OverloadedMethod(mockTransmission, state, void(int))).AlwaysReturn();
-    When(Method(mockInterface, read)).Do([](CAN_message_t &msg) -> int {
+    When(Method(mockCan1, read)).Do([](CAN_message_t &msg) -> int {
         msg = CAN_message_t {
             .id = 0x65au,
             .buf = {0x11, 0x22, 0x33, 0x44, 0x00, 0x00, 0x00, 0x00}
@@ -152,7 +162,6 @@ TEST_F(CanTest, setClutch) {
 }
 
 TEST_F(CanTest, canTimeout) {
-    When(Method(mockInterface, read)).AlwaysReturn(0);
     When(Method(ArduinoFake(), millis)).AlwaysReturn(100);
     
     can.update();
@@ -169,7 +178,7 @@ TEST_F(CanTest, broadcastShiftSettings) {
 
     CAN_message_t written;
 
-    When(Method(mockInterface, write)).Do([&](const CAN_message_t& msg) -> int {
+    When(Method(mockCan1, write)).Do([&](const CAN_message_t& msg) -> int {
         written = msg;
         return 1;
     });
@@ -184,7 +193,7 @@ TEST_F(CanTest, broadcastShiftSettings) {
 
     can.broadcastShiftSettings();
 
-    Verify(Method(mockInterface, write)).Once();
+    Verify(Method(mockCan1, write)).Once();
     EXPECT_EQ(written, reference) << "Incorrect 'shift_settings' message written to CAN interface";
 }
 
@@ -194,7 +203,7 @@ TEST_F(CanTest, broadcastShiftSettingsFrequency) {
         can.broadcastShiftSettings();
     }
 
-    Verify(Method(mockInterface, write)).Exactly(5);
+    Verify(Method(mockCan1, write)).Exactly(5);
 }
 #pragma endregion
 
@@ -207,7 +216,7 @@ TEST_F(CanTest, broadcastClutchSettings) {
 
     CAN_message_t written;
 
-    When(Method(mockInterface, write)).Do([&](const CAN_message_t& msg) -> int {
+    When(Method(mockCan1, write)).Do([&](const CAN_message_t& msg) -> int {
         written = msg;
         return 1;
     });
@@ -222,7 +231,7 @@ TEST_F(CanTest, broadcastClutchSettings) {
 
     can.broadcastClutchSettings();
 
-    Verify(Method(mockInterface, write)).Once();
+    Verify(Method(mockCan1, write)).Once();
     EXPECT_EQ(written, reference) << "Incorrect 'clutch_settings' message written to CAN interface";
 }
 
@@ -232,7 +241,7 @@ TEST_F(CanTest, broadcastClutchSettingsFrequency) {
         can.broadcastClutchSettings();
     }
 
-    Verify(Method(mockInterface, write)).Exactly(5);
+    Verify(Method(mockCan1, write)).Exactly(5);
 }
 #pragma endregion
 
@@ -245,7 +254,7 @@ TEST_F(CanTest, broadcastClutch) {
 
     CAN_message_t written;
 
-    When(Method(mockInterface, write)).Do([&](const CAN_message_t& msg) -> int {
+    When(Method(mockCan1, write)).Do([&](const CAN_message_t& msg) -> int {
         written = msg;
         return 1;
     });
@@ -258,7 +267,7 @@ TEST_F(CanTest, broadcastClutch) {
 
     can.broadcastClutch();
 
-    Verify(Method(mockInterface, write)).Once();
+    Verify(Method(mockCan1, write)).Once();
     EXPECT_EQ(written, reference) << "Incorrect 'clutch' message written to CAN interface";
 }
 
@@ -268,43 +277,73 @@ TEST_F(CanTest, broadcastClutchFrequency) {
         can.broadcastClutch();
     }
 
-    Verify(Method(mockInterface, write)).Exactly(20);
+    Verify(Method(mockCan1, write)).Exactly(20);
 }
 #pragma endregion
 
-#pragma region broadcastAnalogInput
-TEST_F(CanTest, broadcastAnalogInput) {
-    const CAN_message_t reference = {
-        .id = 0x65bu,
-        .buf = {0x11, 0x22, 0x33, 0x44, 0x00, 0x00, 0x00, 0x00}
-    };
+#pragma region Shift Controller
+TEST_F(CanTest, upshift) {
+    When(Method(mockCan2, read)).Do([](CAN_message_t &msg) -> int {
+        msg = CAN_message_t {
+            .id = 0x65cu,
+            .buf = {0b00000001, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+        };
 
-    CAN_message_t result;
-
-    When(Method(mockInterface, write)).Do([&](const CAN_message_t& msg) -> int {
-        result = msg;
         return 1;
     });
 
-    can.broadcastAnalogInput();
+    can.update();
 
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(100);
-    When(Method(mockClutchRight, travel)).AlwaysReturn(0x1122);
-    When(Method(ArduinoFake(), analogRead).Using(storage.CLUTCH_RIGHT)).AlwaysReturn(0x3344);
-
-    can.broadcastAnalogInput();
-
-    EXPECT_EQ(result, reference) << "Incorrect 'analog_input' message written to CAN interface";
+    Verify(Method(mockTransmission, shift).Using(Transmission::Direction::UP)).Once();
 }
 
-TEST_F(CanTest, broadcastAnalogInputFrequency) {
-    for(int i=0; i<1000; i+=10) {
-        When(Method(ArduinoFake(), millis)).AlwaysReturn(i);
-        can.broadcastAnalogInput();
+TEST_F(CanTest, downshift) {
+    When(Method(mockCan2, read)).Do([](CAN_message_t &msg) -> int {
+        msg = CAN_message_t {
+            .id = 0x65cu,
+            .buf = {0b00000010, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+        };
+
+        return 1;
+    });
+
+    can.update();
+
+    Verify(Method(mockTransmission, shift).Using(Transmission::Direction::DOWN)).Once();
+}
+
+TEST_F(CanTest, clutchInput) {
+    struct Bound {
+        int count;
+        uint8_t high;
+        uint8_t low;
+    };
+
+    vector<Bound> bounds = {
+        {0, 0xFC, 0x18}, // -10
+        {0, 0xFF, 0x9C}, // -1
+        {1, 0x00, 0x00}, // 0
+        {1, 0x13, 0x88}, // 50
+        {1, 0x27, 0x10}, // 100
+        {0, 0x2A, 0xF8}, // 110
+    };
+
+    for(auto bound : bounds) {
+        mockTransmission.ClearInvocationHistory();
+
+        When(Method(mockCan2, read)).Do([&](CAN_message_t &msg) -> int {
+            msg = CAN_message_t {
+                .id = 0x65cu,
+                .buf = {0x00, bound.high, bound.low, 0x00, 0x00, 0x00, 0x00, 0x00}
+            };
+
+            return 1;
+        });
+
+        can.update();
+
+        Verify(Method(mockTransmission, clutchInput)).Exactly(bound.count);
     }
-
-    Verify(Method(mockInterface, write)).Exactly(20);
 }
-#pragma endregion
 
 #endif

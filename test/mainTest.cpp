@@ -1,8 +1,6 @@
 #ifdef NATIVE
 
 #include <gtest/gtest.h>
-#include "AnalogInputTest.h"
-#include "ButtonTest.h"
 #include "CanTest.h"
 #include "FiniteStateMachineTest.h"
 #include "StorageTest.h"

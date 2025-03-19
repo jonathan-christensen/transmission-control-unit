@@ -3,8 +3,11 @@
 using namespace std;
 
 void Can::begin() {
-    interface.begin();
-    interface.setBaudRate(1000000);
+    can1.begin();
+    can1.setBaudRate(1000000);
+
+    can2.begin();
+    can2.setBaudRate(1000000);
 }
 
 void Can::handleGroup0(const CAN_message_t &msg) {
@@ -57,6 +60,25 @@ void Can::handleSetClutch(const CAN_message_t &msg) {
     transmission.setClutchPosition(setPosition);
 }
 
+void Can::handleShiftController(const CAN_message_t &msg) {
+    tcs_shift_controller_t buf;
+    tcs_shift_controller_unpack(&buf, msg.buf, sizeof(msg.buf));
+
+    bool up = tcs_shift_controller_up_decode(buf.up);
+    bool down = tcs_shift_controller_down_decode(buf.down);
+    float clutchRight = tcs_shift_controller_clutch_right_decode(buf.clutch_right);
+    
+    if(0 <= clutchRight && clutchRight <= 100) {
+        transmission.clutchInput(clutchRight);
+    }
+
+    if(up) {
+        transmission.shift(Transmission::Direction::UP);
+    } else if(down) {
+        transmission.shift(Transmission::Direction::DOWN);
+    }
+}
+
 void Can::update() {
     // Set the RPM to 0 if an ECU message has not been recieved in 100 ms
     if(millis() - lastEcuUpdate >= 100) {
@@ -64,28 +86,34 @@ void Can::update() {
     }
 
     CAN_message_t msg;
-    if(!interface.read(msg)) return;
+    if(can1.read(msg)) {
+        switch(msg.id) {
+            case R3_GROUP0_FRAME_ID: {
+                lastEcuUpdate = millis();
+                handleGroup0(msg);
+                break;
+            }
 
-    switch(msg.id) {
-        case R3_GROUP0_FRAME_ID: {
-            lastEcuUpdate = millis();
-            handleGroup0(msg);
-            break;
+            case TCS_SET_SHIFT_SETTINGS_FRAME_ID: {
+                handleShiftSettings(msg);
+                break;
+            }
+
+            case TCS_SET_CLUTCH_SETTINGS_FRAME_ID: {
+                handleClutchSettings(msg);
+                break;
+            }
+
+            case TCS_SET_CLUTCH_FRAME_ID: {
+                handleSetClutch(msg);
+                break;
+            }
         }
+    }
 
-        case TCS_SET_SHIFT_SETTINGS_FRAME_ID: {
-            handleShiftSettings(msg);
-            break;
-        }
-
-        case TCS_SET_CLUTCH_SETTINGS_FRAME_ID: {
-            handleClutchSettings(msg);
-            break;
-        }
-
-        case TCS_SET_CLUTCH_FRAME_ID: {
-            handleSetClutch(msg);
-            break;
+    if(can2.read(msg)) {
+        if(msg.id == TCS_SHIFT_CONTROLLER_FRAME_ID) {
+            handleShiftController(msg);
         }
     }
 }
@@ -103,7 +131,7 @@ void Can::broadcastShiftSettings() {
         buf.timeout = tcs_shift_settings_timeout_encode(storage.timeout());
         tcs_shift_settings_pack(msg.buf, &buf, sizeof(msg.buf));
 
-        interface.write(msg);
+        can1.write(msg);
         lastBroadastTime = millis();
     }
 }
@@ -121,7 +149,7 @@ void Can::broadcastClutchSettings() {
         buf.auto_launch = tcs_clutch_settings_auto_launch_encode(storage.autoLaunch());
         tcs_clutch_settings_pack(msg.buf, &buf, sizeof(msg.buf));
 
-        interface.write(msg);
+        can1.write(msg);
         lastBroadastTime = millis();
     }
 }
@@ -137,25 +165,7 @@ void Can::broadcastClutch() {
         buf.position_percentage = tcs_clutch_position_percentage_encode(transmission.clutchPercentage());
         tcs_clutch_pack(msg.buf, &buf, sizeof(msg.buf));
 
-        interface.write(msg);
-        lastBroadastTime = millis();
-    }
-}
-
-void Can::broadcastAnalogInput() {
-    static unsigned long lastBroadastTime = 0;
-    if(millis() - lastBroadastTime >= 50) {
-        CAN_message_t msg;
-        msg.id = TCS_ANALOG_INPUT_FRAME_ID;
-
-        tcs_analog_input_t buf;
-        buf.input_right_travel = tcs_analog_input_input_right_travel_encode(clutchRight.travel());
-        buf.input_right_raw = tcs_analog_input_input_right_raw_encode(analogRead(storage.CLUTCH_RIGHT));
-        buf.input_left_travel = tcs_analog_input_input_left_travel_encode(0);
-        buf.input_left_raw = tcs_analog_input_input_left_raw_encode(0);
-        tcs_analog_input_pack(msg.buf, &buf, sizeof(msg.buf));
-
-        interface.write(msg);
+        can1.write(msg);
         lastBroadastTime = millis();
     }
 }
